@@ -21,7 +21,7 @@ stompClient.connect({}, function (frame) {
         editor.value = message.body;
         isReceiving = false;
     });
-});
+});  
 
 editor.addEventListener('input', function() {
     console.log('input event fired, isReceiving:', isReceiving);
