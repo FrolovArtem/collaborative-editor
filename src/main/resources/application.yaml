@@ -1,3 +1,5 @@
 spring:
   application:
     name: collaborative-editor
+documents:
+  storage-path: documents

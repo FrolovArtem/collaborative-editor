@@ -1,6 +1,5 @@
 package com.example.collaborative_editor.service;
 
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
