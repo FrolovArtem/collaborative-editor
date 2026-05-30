@@ -3,37 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Совместный редактор</title>
+    <title>Документы | Совместный редактор</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/style.css">
 </head>
-<body>
-<div class="container-fluid editor-container p-3">
-    <h4>Поле для текста</h4>
-    <p>
-        Документ: <span id="docIdDisplay"></span> |
-        Вы: <span id="currentUserDisplay"></span>
-    </p>
-
-    <div id="loginBlock" style="display:none;">
-        <div class="input-group mb-3">
-            <input type="text" id="usernameInput" class="form-control" placeholder="Введите ваш ник">
-            <button id="loginBtn" class="btn btn-primary">Войти</button>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-4">
+                        <h1 class="h3 mb-4 text-center">📄 Мои документы</h1>
+                        <ul id="documentList" class="list-group list-group-flush mb-4"></ul>
+                        <div class="input-group">
+                            <input type="text" id="newDocId" class="form-control" placeholder="Введите название нового документа">
+                            <button id="createBtn" class="btn btn-dark">Создать</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+    <script>
+        function loadDocuments() {
+            fetch('/api/documents')
+                .then(response => response.json())
+                .then(docs => {
+                    const list = document.getElementById('documentList');
+                    list.innerHTML = '';
+                    if (docs.length === 0) {
+                        list.innerHTML = '<li class="list-group-item text-center text-muted">Пока нет документов</li>';
+                        return;
+                    }
+                    docs.forEach(doc => {
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item d-flex justify-content-between align-items-center border-0';
+                        const link = document.createElement('a');
+                        link.href = '/document/' + doc;
+                        link.textContent = doc;
+                        link.className = 'text-decoration-none fw-medium';
+                        li.appendChild(link);
+                        list.appendChild(li);
+                    });
+                })
+                .catch(err => console.error('Ошибка загрузки списка:', err));
+        }
 
-    <div id="editorBlock" style="display:none;">
-        <textarea id="editor" class="form-control" placeholder="Начните печатать..."></textarea>
-    </div>
+        document.getElementById('createBtn').addEventListener('click', () => {
+            const newId = document.getElementById('newDocId').value.trim();
+            if (newId) {
+                window.location.href = '/document/' + newId;
+            } else {
+                alert('Введите название документа');
+            }
+        });
 
-    <div class="mt-3">
-        <h5>Пользователи в документе:</h5>
-        <ul id="userList"></ul>
-    </div>
-</div>
+        document.getElementById('newDocId').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('createBtn').click();
+        });
 
-<script src="lib/sockjs.min.js"></script>
-<script src="lib/stomp.umd.min.js"></script>
-<script src="editor.js"></script>
+        window.addEventListener('load', loadDocuments);
+    </script>
 </body>
 </html>

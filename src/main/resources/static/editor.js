@@ -1,5 +1,5 @@
-const params = new URLSearchParams(window.location.search);
-const docId = params.get('id') || 'default';
+const pathParts = window.location.pathname.split('/');
+const docId = pathParts[pathParts.length - 1] || 'default';
 document.getElementById('docIdDisplay').textContent = docId;
 
 const loginBlock = document.getElementById('loginBlock');
@@ -11,7 +11,8 @@ const userList = document.getElementById('userList');
 const editor = document.getElementById('editor');
 
 let stompClient = null;
-let isApplyingRemote = false;   
+let isApplyingRemote = false;
+let lastSentPacket = '';
 
 let username = sessionStorage.getItem('username');
 if (username) {
@@ -36,18 +37,15 @@ function showEditor(username) {
     connectWebSocket(username);
 }
 
-// WebSocket
 function connectWebSocket(username) {
     const socket = new SockJS('/ws');
     stompClient = StompJs.Stomp.over(socket);
     const headers = { username: username };
 
     stompClient.connect(headers, function(frame) {
-        console.log('Подключено: ' + frame);
-
         stompClient.subscribe('/topic/document/' + docId, function(message) {
+            if (message.body === lastSentPacket) return;
             const patch = JSON.parse(message.body);
-            
             pendingPatches = [];
             if (patchTimer) {
                 clearTimeout(patchTimer);
@@ -69,7 +67,6 @@ let pendingPatches = [];
 let patchTimer = null;
 
 function addPatch(patch) {
-    console.log('Добавлен патч:', patch, 'Текущая длина текста:', editor.value.length);
     pendingPatches.push(patch);
     if (patchTimer) clearTimeout(patchTimer);
     patchTimer = setTimeout(sendPatches, 300);
@@ -80,11 +77,10 @@ function sendPatches() {
     const batch = [...pendingPatches];
     pendingPatches = [];
     const json = JSON.stringify(batch);
-    console.log('Отправляем патч. Длина редактора:', editor.value.length, 'Пакет:', json);
+    lastSentPacket = json;
     stompClient.send('/app/patch/' + docId, {}, json);
 }
 
-// Генерация патча из beforeinput
 editor.addEventListener('beforeinput', function(event) {
     if (isApplyingRemote) return;
 
@@ -92,18 +88,14 @@ editor.addEventListener('beforeinput', function(event) {
     const end = editor.selectionEnd;
     const inputType = event.inputType;
 
-    // Вставка текста
     if (inputType === 'insertText' || inputType === 'insertFromPaste' ||
         inputType === 'insertFromDrop' || inputType === 'insertFromComposition') {
-        event.preventDefault();  // отменяем стандартное действие, мы сами вставим
+        event.preventDefault();
         const text = event.data || '';
         addPatch({ op: 'insert', pos: start, text: text });
-        // Применяем локально сразу же, чтобы видеть свой ввод
         editor.setRangeText(text, start, end, 'end');
-        // Устанавливаем курсор после вставленного
         editor.selectionStart = editor.selectionEnd = start + text.length;
     }
-    // Удаление назад
     else if (inputType === 'deleteContentBackward') {
         event.preventDefault();
         if (start === end && start > 0) {
@@ -116,7 +108,6 @@ editor.addEventListener('beforeinput', function(event) {
             editor.setRangeText('', start, end, 'end');
         }
     }
-    // Удаление вперёд
     else if (inputType === 'deleteContentForward') {
         event.preventDefault();
         if (start === end && start < editor.value.length) {
@@ -131,7 +122,6 @@ editor.addEventListener('beforeinput', function(event) {
     }
 });
 
-// Обработка вставки из контекстного меню/мышкой
 editor.addEventListener('paste', function(event) {
     if (isApplyingRemote) return;
     event.preventDefault();
@@ -143,7 +133,6 @@ editor.addEventListener('paste', function(event) {
     editor.selectionStart = editor.selectionEnd = start + text.length;
 });
 
-// Обработка вырезания
 editor.addEventListener('cut', function(event) {
     if (isApplyingRemote) return;
     event.preventDefault();
@@ -157,10 +146,9 @@ editor.addEventListener('cut', function(event) {
     }
 });
 
-// Применение пришедшего от сервера патча
 function applyPatchToEditor(patches) {
     const list = Array.isArray(patches) ? patches : [patches];
-    let shift = 0;  
+    let shift = 0;
     for (const p of list) {
         const pos = p.pos + shift;
         if (p.op === 'insert') {

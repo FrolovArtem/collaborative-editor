@@ -21,7 +21,8 @@ public class UserTrackerService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public UserTrackerService(SimpMessagingTemplate messagingTemplate,
-                              UserPresentService userPresentService, DocumentService documentService) {
+                              UserPresentService userPresentService,
+                              DocumentService documentService) {
         this.messagingTemplate = messagingTemplate;
         this.userPresentService = userPresentService;
         this.documentService = documentService;
@@ -36,37 +37,36 @@ public class UserTrackerService {
     }
 
     @EventListener
-public void handleSubscribe(SessionSubscribeEvent event) {
-    StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
-    String destination = accessor.getDestination();
-    String sessionId = accessor.getSessionId();
-    if (destination == null || sessionId == null) return;
+    public void handleSubscribe(SessionSubscribeEvent event) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
+        String destination = accessor.getDestination();
+        String sessionId = accessor.getSessionId();
+        if (destination == null || sessionId == null) return;
 
-    String docId = extractDocId(destination);
-    if (docId == null) return;
+        String docId = extractDocId(destination);
+        if (docId == null) return;
 
-    userPresentService.moveToDocument(sessionId, docId);
-    sendUserList(docId);
+        userPresentService.moveToDocument(sessionId, docId);
+        sendUserList(docId);
 
-    if (destination.equals("/topic/document/" + docId)) {
-        String currentText = documentService.getDocumentText(docId);
-        if (!currentText.isEmpty()) {
-            List<Map<String, Object>> initPatch = new ArrayList<>();
-            Map<String, Object> insert = new HashMap<>();
-            insert.put("op", "insert");
-            insert.put("pos", 0);
-            insert.put("text", currentText);
-            initPatch.add(insert);
-
-            try {
-                String json = objectMapper.writeValueAsString(initPatch);
-                messagingTemplate.convertAndSend("/topic/document/" + docId, json);
-            } catch (JsonProcessingException e) {
-                e.printStackTrace();
+        if (destination.equals("/topic/document/" + docId)) {
+            String currentText = documentService.getDocumentText(docId);
+            if (!currentText.isEmpty()) {
+                List<Map<String, Object>> initPatch = new ArrayList<>();
+                Map<String, Object> insert = new HashMap<>();
+                insert.put("op", "insert");
+                insert.put("pos", 0);
+                insert.put("text", currentText);
+                initPatch.add(insert);
+                try {
+                    String json = objectMapper.writeValueAsString(initPatch);
+                    messagingTemplate.convertAndSendToUser(sessionId, "/topic/document/" + docId, json);
+                } catch (JsonProcessingException e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
-}
 
     @EventListener
     public void handleDisconnect(SessionDisconnectEvent event) {
